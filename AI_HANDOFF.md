@@ -4,7 +4,7 @@
 
 Tài liệu này mô tả toàn bộ trạng thái hiện tại của dự án để có thể chuyển tiếp cho một AI khác tiếp tục phát triển mà không phải đọc lại toàn bộ lịch sử trao đổi.
 
-Ngày cập nhật: **04/09/2026**
+Ngày cập nhật: **09/09/2026**
 
 ## 2. Bối cảnh và nguồn tài liệu
 
@@ -117,23 +117,20 @@ Ví dụ:
 abc123 -> INVALID
 ```
 
-### Sliding window
+### Cặp liền kề từ số thứ hai và cặp đầu-cuối
 
-Với `0366664670`, engine tạo chính xác:
+Với `0986995916`, engine tạo chính xác:
 
 ```text
-03, 36, 66, 66, 66, 64, 46, 67, 70
+98, 86, 69, 99, 95, 59, 91, 16, 06
 ```
 
-Công thức:
+Quy tắc:
 
-```ts
-for (let i = 0; i < phone.length - 1; i++) {
-  pairs.push(phone.slice(i, i + 2));
-}
-```
-
-Không được dùng cách tách cặp không chồng lấp.
+- Không lấy cặp gồm chữ số đầu tiên và chữ số thứ hai.
+- Tạo các cặp liền kề có chồng lấp, bắt đầu từ chữ số thứ hai cho đến chữ số cuối.
+- Cuối cùng thêm cặp gồm `chữ số đầu + chữ số cuối`.
+- Với số có `n` chữ số, kết quả vẫn có `n - 1` cặp.
 
 ### Quy tắc `00`
 
@@ -357,13 +354,13 @@ File chính: `src/app/page.tsx`
 
 File: `src/lib/phoneAnalysisEngine.test.ts`
 
-Đã có 3 test:
+Đã có 4 test:
 
 ### Test 1
 
 Input `0366664670`
 
-- Pairs đúng sliding window.
+- Pairs bắt đầu từ chữ số thứ hai và kết thúc bằng cặp đầu-cuối.
 - Digit sum `44`.
 - Total meaning `Lãng mạn`.
 - `66` lặp 3 lần liên tiếp.
@@ -372,7 +369,7 @@ Input `0366664670`
 
 Input `0984612963`
 
-- Pairs đúng sliding window.
+- Pairs bắt đầu từ chữ số thứ hai và kết thúc bằng cặp đầu-cuối.
 - Digit sum `48`.
 - Total meaning `Được nhận tiền từ người mình thương`.
 
@@ -380,8 +377,15 @@ Input `0984612963`
 
 Input `0372036001`
 
-- Pairs đúng sliding window.
+- Pairs bắt đầu từ chữ số thứ hai và kết thúc bằng cặp đầu-cuối.
 - `00` phủ định `60`.
+
+### Test 4
+
+Input `0986995916`
+
+- Pairs: `98, 86, 69, 99, 95, 59, 91, 16, 06`.
+- Digit sum giữ nguyên là `62`.
 
 ## 13. Lệnh chạy và kiểm tra
 
@@ -426,8 +430,8 @@ Trạng thái lần kiểm tra gần nhất:
 2. Không dùng Google/search/Internet để bổ sung meaning.
 3. Không dùng AI/LLM để chấm điểm hoặc quyết định Top 1.
 4. Không tự thêm meaning cho `00`.
-5. Không bỏ qua cặp số.
-6. Không tách cặp theo kiểu không chồng lấp.
+5. Luôn tách cặp liền kề từ chữ số thứ hai và thêm cặp `chữ số đầu + chữ số cuối`.
+6. Không quay lại quy tắc lấy cặp giữa chữ số đầu tiên và chữ số thứ hai.
 7. Không bỏ `0` khi tính tổng.
 8. Không tự sửa số invalid.
 9. Không thay đổi meaning trong `src/data/phoneMeanings.ts` nếu chưa có yêu cầu mới.

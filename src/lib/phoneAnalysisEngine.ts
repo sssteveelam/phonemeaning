@@ -25,6 +25,15 @@ const findRepeatedPairs = (pairs: string[]): RepeatedPair[] => {
     }));
 };
 
+const createPairStrings = (phone: string): string[] => {
+  const adjacentPairs = Array.from(
+    { length: Math.max(0, phone.length - 2) },
+    (_, index) => phone.slice(index + 1, index + 3)
+  );
+  const firstLastPair = `${phone[0]}${phone[phone.length - 1]}`;
+  return [...adjacentPairs, firstLastPair];
+};
+
 export function analyzePhoneNumber(input: string): PhoneAnalysis {
   const validation = validatePhoneNumber(input);
   if (!validation.valid) {
@@ -46,7 +55,7 @@ export function analyzePhoneNumber(input: string): PhoneAnalysis {
   }
 
   const phone = validation.phone;
-  const pairStrings = Array.from({ length: Math.max(0, phone.length - 1) }, (_, index) => phone.slice(index, index + 2));
+  const pairStrings = createPairStrings(phone);
   const repeatedPairs = findRepeatedPairs(pairStrings);
   const repeatedLookup = new Map(repeatedPairs.map((item) => [item.pair, item]));
   const zeroIndexes = pairStrings.reduce<number[]>((all, pair, index) => pair === "00" ? [...all, index] : all, []);

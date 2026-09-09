@@ -112,7 +112,7 @@ export default function HomePage() {
 
       {tab === "check" ? <section className="workspace">
         <div className="input-panel panel">
-          <div><p className="eyebrow">Chức năng 01</p><h2>Nhập số điện thoại</h2><p className="muted-copy">Các cặp số được tách theo sliding window, có chồng lấp.</p></div>
+          <div><p className="eyebrow">Chức năng 01</p><h2>Nhập số điện thoại</h2><p className="muted-copy">Tách cặp từ số thứ hai đến cuối, rồi ghép thêm số đầu với số cuối.</p></div>
           <div className="input-row"><input value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => event.key === "Enter" && runAnalysis()} placeholder="Ví dụ: 0984612963" aria-label="Nhập số điện thoại" /><button className="primary-button" onClick={runAnalysis}>Phân tích <ChevronDown size={16} className="rotate-minus" /></button></div>
           <div className="sample-row"><span>Số mẫu</span>{samples.map((sample) => <button key={sample} onClick={() => setInput(sample)}>{sample}</button>)}</div>
         </div>

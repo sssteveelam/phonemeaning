@@ -18,7 +18,7 @@ export function PhoneAnalysisView({ analysis }: { analysis: PhoneAnalysis }) {
 
       <section className="panel">
         <div className="panel-heading">
-          <div><p className="eyebrow">Sliding window</p><h2>Các cặp số</h2></div>
+          <div><p className="eyebrow">Liền kề + đầu/cuối</p><h2>Các cặp số</h2></div>
           <span className="count-badge">{analysis.pairs.length} cặp</span>
         </div>
         <div className="pair-chips">

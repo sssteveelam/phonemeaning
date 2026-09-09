@@ -13,7 +13,7 @@ Người dùng nhập một số điện thoại.
 App phải:
 
 1. Hiển thị số điện thoại.
-2. Tự động tách số thành các cặp **2 chữ số liên tiếp có chồng lấp**.
+2. Tự động tách thành các cặp **2 chữ số liên tiếp có chồng lấp từ chữ số thứ hai**, sau đó thêm cặp **chữ số đầu + chữ số cuối**.
 3. Tra cứu ý nghĩa từng cặp từ bảng 01–99.
 4. Xử lý quy tắc đặc biệt của `00`.
 5. Phát hiện và highlight các cặp số lặp lại.
@@ -25,15 +25,15 @@ Ví dụ:
 
 Số:
 
-`0366664670`
+`0986995916`
 
 Phải tách thành:
 
-`03 – 36 – 66 – 66 – 66 – 64 – 46 – 67 – 70`
+`98 – 86 – 69 – 99 – 95 – 59 – 91 – 16 – 06`
 
 Không được tách kiểu:
 
-`03 – 66 – 66 – 46 – 70`
+`09 – 98 – 86 – 69 – 99 – 95 – 59 – 91 – 16`
 
 ---
 
@@ -216,31 +216,32 @@ Giữ nguyên text, dấu câu và wording.
 
 Với số:
 
-`0366664670`
+`0986995916`
 
-dùng sliding window:
+Tách các cặp liền kề bắt đầu từ chữ số thứ hai, rồi thêm cặp gồm chữ số đầu và chữ số cuối:
 
 ```text
-03
-36
-66
-66
-66
-64
-46
-67
-70
+98
+86
+69
+99
+95
+59
+91
+16
+06
 ```
 
 Pseudo:
 
 ```ts
-for (let i = 0; i < phone.length - 1; i++) {
-    pairs.push(phone.slice(i, i + 2))
+for (let i = 1; i < phone.length - 1; i++) {
+    pairs.push(phone.slice(i, i + 2));
 }
+pairs.push(phone[0] + phone[phone.length - 1]);
 ```
 
-Không được bỏ qua bất kỳ cặp nào.
+Không lấy cặp giữa chữ số đầu tiên và chữ số thứ hai. Với số có `n` chữ số, kết quả có `n - 1` cặp.
 
 ---
 
@@ -706,7 +707,6 @@ Tạo unit tests cho ít nhất các số sau:
 Expected pairs:
 
 ```text
-03
 36
 66
 66
@@ -715,6 +715,7 @@ Expected pairs:
 46
 67
 70
+00
 ```
 
 Expected sum:
@@ -738,7 +739,6 @@ Expected repeated pair:
 Expected pairs:
 
 ```text
-09
 98
 84
 46
@@ -747,6 +747,7 @@ Expected pairs:
 29
 96
 63
+03
 ```
 
 Expected sum:
@@ -766,7 +767,6 @@ Expected total meaning:
 Expected pairs:
 
 ```text
-03
 37
 72
 20
@@ -774,6 +774,7 @@ Expected pairs:
 36
 60
 00
+01
 01
 ```
 
@@ -795,7 +796,7 @@ Không được:
 
 ❌ tự thêm meaning cho 00.
 
-❌ bỏ qua cặp số.
+❌ lấy cặp giữa chữ số đầu tiên và chữ số thứ hai thay cho cặp đầu-cuối.
 
 ❌ tách số thành từng cặp không chồng lấp.
 
