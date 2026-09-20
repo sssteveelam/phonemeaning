@@ -41,3 +41,16 @@ export interface ParsedPhone {
   valid: boolean;
   error?: string;
 }
+
+export interface RankedPhoneRow {
+  analysis: PhoneAnalysis;
+  rank: number;
+  source?: {
+    phone: string;
+    plan: "pre" | "post";
+    price: number | null;
+    priceLabel: string;
+    pledgeTime: string | null;
+    pledgeAmount: number | null;
+  };
+}

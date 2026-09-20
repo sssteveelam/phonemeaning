@@ -1,9 +1,9 @@
 import { AlertTriangle, BadgeCheck, Copy, Hash, Repeat2 } from "lucide-react";
-import type { PhoneAnalysis } from "@/types/phone";
+import type { PhoneAnalysis, RankedPhoneRow } from "@/types/phone";
 import { ScoreCard } from "@/components/ScoreCard";
 import { GeminiInsight } from "@/components/GeminiInsight";
 
-export function PhoneAnalysisView({ analysis }: { analysis: PhoneAnalysis }) {
+export function PhoneAnalysisView({ analysis, source }: { analysis: PhoneAnalysis; source?: RankedPhoneRow["source"] }) {
   if (!analysis.valid) return <div className="error-box"><AlertTriangle size={18} />{analysis.error}</div>;
   return (
     <div className="analysis-stack">
@@ -11,7 +11,7 @@ export function PhoneAnalysisView({ analysis }: { analysis: PhoneAnalysis }) {
         <div>
           <p className="eyebrow">Số điện thoại</p>
           <h2 className="phone-display">{analysis.phoneNumber}</h2>
-          <p className="muted-copy">Đã chuẩn hóa tại trình duyệt, không gửi dữ liệu ra ngoài.</p>
+          <p className="muted-copy">{source ? `Nguồn Viettel · ${source.plan === "pre" ? "trả trước" : "trả sau"} · ${source.priceLabel || "chưa có giá"}` : "Đã chuẩn hóa tại trình duyệt, không gửi dữ liệu ra ngoài."}</p>
         </div>
         <button className="icon-button" onClick={() => navigator.clipboard?.writeText(analysis.phoneNumber)} title="Sao chép số"><Copy size={17} /></button>
       </section>

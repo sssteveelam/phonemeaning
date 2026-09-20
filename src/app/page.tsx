@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { BarChart3, Check, ChevronDown, Download, FileSpreadsheet, Filter, Search, ShieldCheck, Sparkles, Upload, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, BarChart3, Check, ChevronDown, Download, FileSpreadsheet, Filter, Search, ShieldCheck, Sparkles, Upload, X } from "lucide-react";
 import { analyzePhoneNumber } from "@/lib/phoneAnalysisEngine";
 import { exportRows, parsePhoneFile } from "@/lib/fileParser";
 import { PhoneAnalysisView } from "@/components/PhoneAnalysis";
 import { RankingTable, type RankingSort } from "@/components/RankingTable";
-import type { PhoneAnalysis, ParsedPhone } from "@/types/phone";
+import { ViettelSimSearch } from "@/components/ViettelSimSearch";
+import type { ViettelPlan, ViettelSimRecord } from "@/lib/viettelSimCrawler";
+import type { PhoneAnalysis, ParsedPhone, RankedPhoneRow } from "@/types/phone";
 import * as XLSX from "xlsx";
 
 type Tab = "check" | "rank";
@@ -29,10 +31,11 @@ const matchesFilter = (analysis: PhoneAnalysis, filter: FilterKey) => {
   return terms[filter].some((term) => meaning.includes(term));
 };
 
-const toExportRows = (rows: Array<{ analysis: PhoneAnalysis; rank: number }>) =>
-  rows.map(({ analysis, rank }) => ({
+const toExportRows = (rows: RankedPhoneRow[]) =>
+  rows.map(({ analysis, rank, source }) => ({
     Rank: rank,
     Phone: analysis.phoneNumber,
+    "Viettel Price": source?.priceLabel ?? "",
     Score: analysis.score,
     "Digit Sum": analysis.digitSum,
     "Total Meaning": analysis.totalMeaning ?? "",
@@ -44,18 +47,36 @@ const toExportRows = (rows: Array<{ analysis: PhoneAnalysis; rank: number }>) =>
     Rating: analysis.rating
   }));
 
+const rankPhoneRows = (
+  rows: ParsedPhone[],
+  sourceByPhone: Record<string, ViettelSimRecord> = {}
+): RankedPhoneRow[] => {
+  const all = rows
+    .filter((row) => row.valid)
+    .map((row) => {
+      const item = analyzePhoneNumber(row.phone);
+      return { analysis: item, source: sourceByPhone[item.phoneNumber] };
+    })
+    .filter(({ analysis }) => analysis.valid);
+  const sorted = [...all].sort((a, b) => b.analysis.score - a.analysis.score || (b.analysis.totalMeaning ? 1 : 0) - (a.analysis.totalMeaning ? 1 : 0));
+  return sorted.map((item, index) => ({ ...item, rank: index + 1 }));
+};
+
 export default function HomePage() {
   const [tab, setTab] = useState<Tab>("check");
   const [input, setInput] = useState("");
   const [analysis, setAnalysis] = useState<PhoneAnalysis | null>(null);
   const [fileRows, setFileRows] = useState<ParsedPhone[]>([]);
-  const [ranked, setRanked] = useState<Array<{ analysis: PhoneAnalysis; rank: number }>>([]);
+  const [ranked, setRanked] = useState<RankedPhoneRow[]>([]);
+  const [sourceRecords, setSourceRecords] = useState<Record<string, ViettelSimRecord>>({});
   const [filter, setFilter] = useState<FilterKey>("all");
   const [sort, setSort] = useState<RankingSort>("score-desc");
-  const [selected, setSelected] = useState<PhoneAnalysis | null>(null);
+  const [selected, setSelected] = useState<RankedPhoneRow | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [fileName, setFileName] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+  const detailModalRef = useRef<HTMLDivElement>(null);
+  const modalCloseRef = useRef<HTMLButtonElement>(null);
 
   const visibleRows = useMemo(() => ranked.filter(({ analysis }) => matchesFilter(analysis, filter)), [ranked, filter]);
 
@@ -64,13 +85,27 @@ export default function HomePage() {
     if (!file) return;
     setIsParsing(true);
     setFileName(file.name);
-    try { setFileRows(await parsePhoneFile(file)); } finally { setIsParsing(false); }
+    setSourceRecords({});
+    setSelected(null);
+    try {
+      setFileRows(await parsePhoneFile(file));
+      setRanked([]);
+    } finally { setIsParsing(false); }
   };
   const analyzeAll = () => {
-    const valid = fileRows.filter((row) => row.valid);
-    const all = valid.map((row) => analyzePhoneNumber(row.phone)).filter((item) => item.valid);
-    const sorted = [...all].sort((a, b) => b.score - a.score || (b.totalMeaning ? 1 : 0) - (a.totalMeaning ? 1 : 0));
-    setRanked(sorted.map((item, index) => ({ analysis: item, rank: index + 1 })));
+    setSelected(null);
+    setRanked(rankPhoneRows(fileRows, sourceRecords));
+  };
+  const handleViettelResults = (records: ViettelSimRecord[], query: { pattern: string; plan: ViettelPlan }) => {
+    const sources = Object.fromEntries(records.map((record) => [record.phone, record])) as Record<string, ViettelSimRecord>;
+    const rows = records.map((record) => ({ raw: record.phone, phone: record.phone, valid: true }));
+    setSelected(null);
+    setSourceRecords(sources);
+    setFileRows(rows);
+    setFileName(`Viettel ${query.pattern} · ${query.plan === "pre" ? "trả trước" : "trả sau"}`);
+    setRanked(rankPhoneRows(rows, sources));
+    setFilter("all");
+    setSort("score-desc");
   };
   const sortedVisibleRows = useMemo(() => {
     const copy = [...visibleRows];
@@ -80,6 +115,64 @@ export default function HomePage() {
     if (sort === "phone") copy.sort((a, b) => a.analysis.phoneNumber.localeCompare(b.analysis.phoneNumber) || a.rank - b.rank);
     return copy;
   }, [visibleRows, sort]);
+  const detailRows = sortedVisibleRows;
+  const selectedIndex = selected
+    ? detailRows.findIndex((row) => row.rank === selected.rank && row.analysis.phoneNumber === selected.analysis.phoneNumber)
+    : -1;
+  const canGoPrevious = selectedIndex > 0;
+  const canGoNext = selectedIndex >= 0 && selectedIndex < detailRows.length - 1;
+
+  const goToPrevious = () => {
+    if (canGoPrevious) setSelected(detailRows[selectedIndex - 1]);
+  };
+  const goToNext = () => {
+    if (canGoNext) setSelected(detailRows[selectedIndex + 1]);
+  };
+
+  useEffect(() => {
+    if (selected && selectedIndex < 0) setSelected(null);
+  }, [selected, selectedIndex]);
+
+  useEffect(() => {
+    if (!selected) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setSelected(null);
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (event.isComposing || target?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "")) return;
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        if (selectedIndex > 0) setSelected(detailRows[selectedIndex - 1]);
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        if (selectedIndex >= 0 && selectedIndex < detailRows.length - 1) {
+          setSelected(detailRows[selectedIndex + 1]);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selected, selectedIndex, detailRows]);
+
+  useEffect(() => {
+    if (!selected) return;
+
+    detailModalRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    modalCloseRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selected]);
 
   const downloadCsv = () => {
     const csv = exportRows(toExportRows(sortedVisibleRows));
@@ -99,7 +192,7 @@ export default function HomePage() {
       <div className="ambient ambient-one" /><div className="ambient ambient-two" />
       <header className="topbar">
         <div className="brand"><div className="brand-mark"><Sparkles size={18} /></div><div><strong>PHONE MEANING</strong><span>ANALYZER</span></div></div>
-        <div className="privacy-pill"><ShieldCheck size={15} /> Xử lý cục bộ trên trình duyệt</div>
+        <div className="privacy-pill"><ShieldCheck size={15} /> Luận giải cục bộ · chỉ gọi Viettel khi bấm nút</div>
       </header>
       <section className="hero">
         <div className="hero-copy"><p className="eyebrow">Bảng ý nghĩa 01–99 · single source of truth</p><h1>Đọc vị một số,<br /><em>chọn đúng một số.</em></h1><p>Tra cứu từng cặp số, nhận diện điểm mạnh – cảnh báo và tìm số nổi bật từ cả danh sách.</p></div>
@@ -118,6 +211,7 @@ export default function HomePage() {
         </div>
         {analysis && <PhoneAnalysisView analysis={analysis} />}
       </section> : <section className="workspace">
+        <ViettelSimSearch onResults={handleViettelResults} />
         <div className="upload-panel panel" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void handleFile(event.dataTransfer.files[0]); }}>
           <div className="upload-icon"><Upload size={24} /></div><p className="eyebrow">Chức năng 02</p><h2>Upload danh sách số</h2><p className="muted-copy">TXT, CSV, XLSX hoặc XLS · dữ liệu không rời khỏi thiết bị.</p>
           <button className="outline-button" onClick={() => fileInput.current?.click()}>{isParsing ? "Đang đọc…" : "Chọn file"} <FileSpreadsheet size={16} /></button>
@@ -128,13 +222,46 @@ export default function HomePage() {
         {ranked.length > 0 && <section className="panel ranking-panel">
           <div className="ranking-head"><div><p className="eyebrow">Bảng xếp hạng deterministic</p><h2>Top số nổi bật</h2></div><div className="export-actions"><button onClick={downloadCsv}><Download size={15} /> CSV</button><button onClick={downloadExcel}><Download size={15} /> Excel</button></div></div>
           <div className="toolbar"><div className="filter-scroll"><Filter size={15} />{(["all", "finance", "career", "love", "opportunity", "leadership", "saving", "best"] as FilterKey[]).map((key) => <button key={key} className={filter === key ? "selected" : ""} onClick={() => setFilter(key)}>{({ all: "Tất cả", finance: "Tài chính", career: "Nghề nghiệp", love: "Tình cảm", opportunity: "Cơ hội", leadership: "Lãnh đạo", saving: "Giữ tiền", best: "Điểm cao nhất" } as Record<FilterKey, string>)[key]}</button>)}</div><label className="sort-select"><ArrowDownIcon /> <select value={sort} onChange={(event) => setSort(event.target.value as RankingSort)}><option value="score-desc">Điểm cao → thấp</option><option value="score-asc">Điểm thấp → cao</option><option value="sum">Tổng số</option><option value="phone">Số điện thoại</option></select></label></div>
-          <RankingTable rows={sortedVisibleRows.slice(0, 10)} onSelect={setSelected} sort={sort} onSort={setSort} />
+          <RankingTable rows={sortedVisibleRows.slice(0, 10)} onSelect={setSelected} sort={sort} onSort={setSort} showSource={Object.keys(sourceRecords).length > 0} />
           <p className="table-footnote">Đang hiển thị {Math.min(sortedVisibleRows.length, 10)} / {sortedVisibleRows.length} kết quả sau bộ lọc. Click một dòng để xem chi tiết.</p>
         </section>}
       </section>}
 
       <footer><span>PHONE MEANING ANALYZER</span><span>© 2026 · Dữ liệu theo bảng người dùng cung cấp</span></footer>
-      {selected && <div className="modal-backdrop" onClick={() => setSelected(null)}><div className="detail-modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setSelected(null)}><X size={18} /></button><PhoneAnalysisView analysis={selected} /></div></div>}
+      {selected && <div className="modal-backdrop" onClick={() => setSelected(null)}>
+        <div ref={detailModalRef} className="detail-modal" tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Chi tiết số ${selected.analysis.phoneNumber}`} onClick={(event) => event.stopPropagation()}>
+          <div className="modal-toolbar">
+            <div className="modal-navigation" role="group" aria-label="Điều hướng danh sách số">
+              <button
+                className="modal-nav-button"
+                onClick={goToPrevious}
+                disabled={!canGoPrevious}
+                title="Số trước (←)"
+                aria-label="Xem số trước"
+              >
+                <ArrowLeft size={16} />
+                <span>Trước</span>
+              </button>
+              <span className="modal-position" aria-live="polite">
+                {selectedIndex >= 0 ? `${selectedIndex + 1} / ${detailRows.length}` : "—"}
+              </span>
+              <button
+                className="modal-nav-button"
+                onClick={goToNext}
+                disabled={!canGoNext}
+                title="Số sau (→)"
+                aria-label="Xem số sau"
+              >
+                <span>Sau</span>
+                <ArrowRight size={16} />
+              </button>
+            </div>
+            <span className="modal-keyboard-hint">← → để chuyển · Esc để đóng</span>
+          </div>
+          <button ref={modalCloseRef} className="modal-close" onClick={() => setSelected(null)} aria-label="Đóng chi tiết" title="Đóng (Esc)"><X size={18} /></button>
+          <PhoneAnalysisView key={`${selected.analysis.phoneNumber}-${selected.rank}`} analysis={selected.analysis} source={selected.source} />
+        </div>
+      </div>}
     </main>
   );
 }

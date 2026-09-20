@@ -3,7 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Phone Meaning Analyzer",
-  description: "Tra cứu ý nghĩa & tìm số nổi bật"
+  description: "Tra cứu ý nghĩa & tìm số nổi bật",
+  icons: { icon: "/icon.svg" }
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
